@@ -1,0 +1,36 @@
+# Secrets and credentials
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.crt
+credentials
+credentials.*
+*credentials*.json
+*secret*
+*.secret
+passwords.txt
+aws-exports.js
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Node / tooling
+node_modules/
+coverage/
+
+# Build output (Lambda zips are produced by scripts/package_lambdas.sh)
+dist/
+build/
+*.zip
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
