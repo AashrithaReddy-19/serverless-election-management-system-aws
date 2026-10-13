@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Serverless Election System</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <h1>Serverless Election Management and Voting System</h1>
+  <div class="who hidden" id="whoBox">
+    <span id="whoText"></span>
+    <button class="secondary" id="logoutBtn">Logout</button>
+  </div>
+</header>
+
+<main>
+  <!-- ============ LOGIN / REGISTER ============ -->
+  <section id="authView" class="auth">
+    <div class="card">
+      <div class="tabs">
+        <button id="tabLogin" class="active">Login</button>
+        <button id="tabVoter">Voter Registration</button>
+        <button id="tabCandidate">Candidate Registration</button>
+      </div>
+
+      <form id="loginForm">
+        <h2>Login</h2>
+        <label>Email</label><input type="email" id="loginEmail" required>
+        <label>Password</label><input type="password" id="loginPassword" required>
+        <div class="row"><button type="submit">Login</button></div>
+      </form>
+
+      <form id="voterForm" class="hidden">
+        <h2>Voter Registration</h2>
+        <label>Full Name</label><input id="vName" required>
+        <label>Email</label><input type="email" id="vEmail" required>
+        <label>Voter ID</label><input id="vId" required placeholder="e.g. V1001">
+        <label>Password</label><input type="password" id="vPassword" required minlength="8">
+        <div class="row"><button type="submit">Register as Voter</button></div>
+      </form>
+
+      <form id="candidateForm" class="hidden">
+        <h2>Candidate Registration</h2>
+        <label>Candidate Name</label><input id="cName" required>
+        <label>Email</label><input type="email" id="cEmail" required>
+        <label>Candidate ID</label><input id="cId" required placeholder="e.g. C101">
+        <label>Party Name</label><input id="cParty" required>
+        <label>Symbol / short party identifier</label><input id="cSymbol" maxlength="6" placeholder="e.g. ABC">
+        <label>Password</label><input type="password" id="cPassword" required minlength="8">
+        <div class="row"><button type="submit">Register as Candidate</button></div>
+      </form>
+
+      <p style="font-size:13px;color:var(--muted);margin-top:14px">Password: at least 8 characters with upper case, lower case, a number and a symbol.</p>
+      <div id="authMsg"></div>
+    </div>
+  </section>
+
+  <!-- ============ VOTER DASHBOARD ============ -->
+  <section id="voterView" class="hidden">
+    <div class="card">
+      <h2 id="voterWelcome">Welcome</h2>
+      <p>Voter ID: <b id="voterIdText"></b> &nbsp; | &nbsp; Election status: <span id="voterStatus" class="status"></span></p>
+    </div>
+    <div class="card">
+      <h2>Election Candidates</h2>
+      <div id="voterNotice"></div>
+      <div id="candidateGrid" class="grid"></div>
+      <div class="row"><button id="castVoteBtn" class="success" disabled>Cast Vote</button></div>
+      <div id="voteMsg"></div>
+    </div>
+  </section>
+
+  <!-- ============ CANDIDATE DASHBOARD ============ -->
+  <section id="candidateView" class="hidden">
+    <div class="card profile">
+      <h2>Candidate Dashboard</h2>
+      <p>Candidate Name: <b id="cpName"></b></p>
+      <p>Party: <b id="cpParty"></b></p>
+      <p>Candidate ID: <b id="cpId"></b></p>
+      <p>Election status: <span id="cpStatus" class="status"></span></p>
+      <div class="row"><button id="cpRefresh" class="secondary">Refresh</button></div>
+      <div id="cpMsg"></div>
+    </div>
+    <div id="cpResults" class="card hidden"></div>
+  </section>
+
+  <!-- ============ ADMIN DASHBOARD ============ -->
+  <section id="adminView" class="hidden">
+    <div class="card">
+      <h2>Admin Dashboard</h2>
+      <p>Election: <b id="adName"></b> &nbsp; Status: <span id="adStatus" class="status"></span></p>
+      <div class="stats">
+        <div class="stat"><div class="v" id="stVoters">0</div><div class="l">Total Registered Voters</div></div>
+        <div class="stat"><div class="v" id="stVotes">0</div><div class="l">Total Votes Cast</div></div>
+        <div class="stat"><div class="v" id="stCands">0</div><div class="l">Total Candidates</div></div>
+        <div class="stat"><div class="v" id="stTurnout">0%</div><div class="l">Voter Turnout</div></div>
+      </div>
+      <div class="row">
+        <button id="startBtn" class="success">Start Election</button>
+        <button id="endBtn" class="danger">End Election</button>
+        <button id="resultsBtn">View Final Results</button>
+        <button id="declareBtn">Declare Winner</button>
+        <button id="resetBtn" class="secondary">Reset Election</button>
+        <button id="adRefresh" class="secondary">Refresh</button>
+      </div>
+      <div id="adMsg"></div>
+    </div>
+    <div id="adResults" class="card hidden"></div>
+    <div class="card">
+      <h3>Registered Candidates</h3>
+      <div class="table-wrap"><table><thead><tr><th>Candidate ID</th><th>Name</th><th>Party</th><th>Symbol</th><th>Email</th></tr></thead><tbody id="adCandTable"></tbody></table></div>
+    </div>
+    <div class="card">
+      <h3>Registered Voters</h3>
+      <div class="table-wrap"><table><thead><tr><th>Voter ID</th><th>Name</th><th>Email</th><th>Voted?</th></tr></thead><tbody id="adVoterTable"></tbody></table></div>
+    </div>
+  </section>
+</main>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
