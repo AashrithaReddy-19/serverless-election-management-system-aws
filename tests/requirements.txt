@@ -1,0 +1,2 @@
+boto3
+moto[dynamodb,cognitoidp]>=5
