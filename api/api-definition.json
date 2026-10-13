@@ -1,0 +1,193 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "VotingAPI",
+    "version": "2.0",
+    "description": "Serverless Election Management and Voting System API"
+  },
+  "paths": {
+    "/register": {
+      "post": {
+        "operationId": "RegisterUserFunction_post",
+        "responses": {
+          "default": {
+            "description": "Lambda response"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "uri": "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:YOUR_ACCOUNT_ID:function:RegisterUserFunction/invocations",
+          "connectionType": "INTERNET"
+        }
+      }
+    },
+    "/candidates": {
+      "get": {
+        "operationId": "GetCandidatesFunction_get",
+        "responses": {
+          "default": {
+            "description": "Lambda response"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "uri": "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:YOUR_ACCOUNT_ID:function:GetCandidatesFunction/invocations",
+          "connectionType": "INTERNET"
+        },
+        "security": [
+          {
+            "CognitoJWT": []
+          }
+        ]
+      }
+    },
+    "/vote": {
+      "post": {
+        "operationId": "CastVoteFunction_post",
+        "responses": {
+          "default": {
+            "description": "Lambda response"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "uri": "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:YOUR_ACCOUNT_ID:function:CastVoteFunction/invocations",
+          "connectionType": "INTERNET"
+        },
+        "security": [
+          {
+            "CognitoJWT": []
+          }
+        ]
+      }
+    },
+    "/admin/dashboard": {
+      "get": {
+        "operationId": "GetAdminDashboardFunction_get",
+        "responses": {
+          "default": {
+            "description": "Lambda response"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "uri": "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:YOUR_ACCOUNT_ID:function:GetAdminDashboardFunction/invocations",
+          "connectionType": "INTERNET"
+        },
+        "security": [
+          {
+            "CognitoJWT": []
+          }
+        ]
+      }
+    },
+    "/admin/election": {
+      "post": {
+        "operationId": "UpdateElectionStatusFunction_post",
+        "responses": {
+          "default": {
+            "description": "Lambda response"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "uri": "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:YOUR_ACCOUNT_ID:function:UpdateElectionStatusFunction/invocations",
+          "connectionType": "INTERNET"
+        },
+        "security": [
+          {
+            "CognitoJWT": []
+          }
+        ]
+      }
+    },
+    "/results": {
+      "get": {
+        "operationId": "GetResultsFunction_get",
+        "responses": {
+          "default": {
+            "description": "Lambda response"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "uri": "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:YOUR_ACCOUNT_ID:function:GetResultsFunction/invocations",
+          "connectionType": "INTERNET"
+        },
+        "security": [
+          {
+            "CognitoJWT": []
+          }
+        ]
+      }
+    },
+    "/results/declare": {
+      "post": {
+        "operationId": "GetResultsFunction_post",
+        "responses": {
+          "default": {
+            "description": "Lambda response"
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "type": "aws_proxy",
+          "httpMethod": "POST",
+          "payloadFormatVersion": "2.0",
+          "uri": "arn:aws:apigateway:ap-south-1:lambda:path/2015-03-31/functions/arn:aws:lambda:ap-south-1:YOUR_ACCOUNT_ID:function:GetResultsFunction/invocations",
+          "connectionType": "INTERNET"
+        },
+        "security": [
+          {
+            "CognitoJWT": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "CognitoJWT": {
+        "type": "oauth2",
+        "flows": {},
+        "x-amazon-apigateway-authorizer": {
+          "type": "jwt",
+          "identitySource": "$request.header.Authorization",
+          "jwtConfiguration": {
+            "audience": [
+              "YOUR_COGNITO_CLIENT_ID"
+            ],
+            "issuer": "https://cognito-idp.ap-south-1.amazonaws.com/YOUR_COGNITO_USER_POOL_ID"
+          }
+        }
+      }
+    }
+  },
+  "x-amazon-apigateway-cors": {
+    "allowOrigins": [
+      "*"
+    ],
+    "allowHeaders": [
+      "authorization",
+      "content-type"
+    ],
+    "allowMethods": [
+      "GET",
+      "POST",
+      "OPTIONS"
+    ],
+    "maxAge": 3600
+  },
+  "x-amazon-apigateway-importexport-version": "1.0"
+}
