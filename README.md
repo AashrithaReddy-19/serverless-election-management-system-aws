@@ -29,6 +29,10 @@ Traditional online voting prototypes often run on always-on servers and trust th
 - Candidate registration
 - Admin role
 - Cognito authentication
+- Forgot Password flow (email verification code)
+- Password reset with code confirmation and Resend Code
+- First-login `NEW_PASSWORD_REQUIRED` handling
+- Friendly Cognito error messages
 - Role-based dashboards
 - Dynamic candidate listing (from DynamoDB)
 - Start election
@@ -167,7 +171,20 @@ Because the vote ID is deterministic and every step is conditional, two simultan
 - Every protected request sends `Authorization: Bearer <ID token>`.
 - The API Gateway **JWT authorizer** validates the token's signature, issuer (the user pool) and audience (the app client). Invalid or missing tokens get `401 Unauthorized` before any Lambda runs.
 - Each Lambda reads the role from the verified `cognito:groups` claim and re-checks it.
-- Registration (`POST /register`) is the only public route. It only accepts `VOTER` or `CANDIDATE`. The Lambda creates the Cognito user and adds it to the matching group.
+- Registration (`POST /register`) is the only public API route. It only accepts `VOTER` or `CANDIDATE`. The Lambda creates the Cognito user and adds it to the matching group.
+
+### Password reset and account recovery
+
+All password flows talk directly to the Cognito User Pool API from the browser (no extra Lambda and no secrets):
+
+| Flow | Cognito action(s) | What the user sees |
+|---|---|---|
+| **Forgot Password** | `ForgotPassword` | Enters their email on the *Forgot Password* screen; Cognito emails a verification code. |
+| **Verification code + new password** | `ConfirmForgotPassword` | *Reset Password* screen: verification code, new password and confirmation. **Resend Code** calls `ForgotPassword` again. |
+| **Admin-forced reset** | `InitiateAuth` → `PasswordResetRequiredException` → `ForgotPassword` | If an admin resets a user's password in Cognito, the login screen automatically sends a code and opens the reset screen. |
+| **Temporary password (first login)** | `InitiateAuth` → `NEW_PASSWORD_REQUIRED` → `RespondToAuthChallenge` | *Set a New Password* screen, then the user is logged in and routed to their dashboard. |
+
+Cognito errors (`CodeMismatchException`, `ExpiredCodeException`, `InvalidPasswordException`, `LimitExceededException`, `NotAuthorizedException`, `UserNotFoundException`, ...) are mapped to friendly messages. The new password is checked in the browser (8+ characters, upper case, lower case, number, symbol) and again by the Cognito password policy. Verification codes and passwords are never logged or stored by the application.
 
 ## 16. DynamoDB Tables
 
@@ -232,7 +249,7 @@ HTTP API `VotingAPI`, `$default` stage with auto-deploy. The full definition is 
 | GET | `/results` | Cognito JWT | GetResultsFunction | ADMIN, CANDIDATE (after ENDED) |
 | POST | `/results/declare` | Cognito JWT | GetResultsFunction | ADMIN |
 
-CORS is configured on the API with origins `*`, headers `authorization, content-type` and methods `GET, POST, OPTIONS`.
+CORS is configured on the API with the website origin(s) only (the S3 HTTPS object URL and the S3 website endpoint), headers `authorization, content-type` and methods `GET, POST, OPTIONS`. Protected routes also require a valid Cognito JWT, so CORS is not the only protection.
 
 ## 19. Frontend
 
@@ -242,7 +259,7 @@ Plain **HTML, CSS and JavaScript**, with no frameworks. It is a single page with
 |---|---|
 | `frontend/index.html` | Page layout for all views |
 | `frontend/styles.css` | Styling |
-| `frontend/app.js` | Cognito login, API calls, role-based routing and dashboards |
+| `frontend/app.js` | Cognito login, Forgot Password / reset / new-password flows, API calls, role-based routing and dashboards |
 | `frontend/config.js` | Public deployment identifiers: region, API URL, user pool ID, app client ID |
 | `frontend/config.example.js` | Placeholder template for your own deployment |
 
@@ -251,7 +268,7 @@ Plain **HTML, CSS and JavaScript**, with no frameworks. It is a single page with
 ## 20. Deployment
 
 1. **DynamoDB:** create `UsersTable` (`userId`), `CandidatesTable` (`candidateId`), `ElectionTable` (`electionId`) and `VotesTable` (`voteId`). All partition keys are strings and use on-demand capacity.
-2. **Cognito:** create a user pool that signs in with email, plus an app client **without a client secret** and with `ALLOW_USER_PASSWORD_AUTH` enabled. Create the group `ADMIN`, then create the admin user and add it to `ADMIN`. The `VOTER` and `CANDIDATE` groups are created automatically on first registration.
+2. **Cognito:** create a user pool that signs in with email, plus an app client **without a client secret** and with `ALLOW_USER_PASSWORD_AUTH` enabled. Create the group `ADMIN`, then create the admin user and add it to `ADMIN`. The `VOTER` and `CANDIDATE` groups are created automatically on first registration. Account recovery by email must be enabled so **Forgot Password** can send verification codes (the default Cognito email sender is fine for a demo; it has a small daily sending limit).
 3. **IAM:** create a Lambda execution role with `AWSLambdaBasicExecutionRole` plus:
    - `dynamodb:GetItem/PutItem/UpdateItem/DeleteItem/Scan/Query/BatchWriteItem/ConditionCheckItem` on the four tables
    - `cognito-idp:AdminCreateUser/AdminSetUserPassword/AdminAddUserToGroup/AdminDeleteUser/CreateGroup` on the user pool
@@ -275,7 +292,12 @@ pip install -r tests/requirements.txt
 python tests/test_election_flow.py
 ```
 
-The deployed Lambdas were also checked in AWS with console test events (status transitions, role checks, results gating), and the API was checked for `401` on unauthenticated protected requests.
+The live deployment was also verified in AWS (ap-south-1):
+
+- every protected route returns `401` without a token or with an invalid token; `POST /register` refuses `role: ADMIN`
+- with Lambda console test events using real users from DynamoDB: vote succeeds, repeat vote → `409 You have already voted in this election`, invalid candidate → `400`, admin vote → `403`, voter/candidate results while `ACTIVE` → `403`, voter election control → `403 Admin access only`
+- end → declare winner (correct winner, total votes and turnout), candidate final results after `ENDED`, reset, 1–1 **tie** detection, and a final reset back to a clean `NOT_STARTED` state
+- CloudWatch logs show each recorded vote
 
 ## 22. Security
 
@@ -297,7 +319,7 @@ See [docs/demo-flow.md](docs/demo-flow.md) for the step-by-step professor demo.
 ## 24. Future Enhancements
 
 - Multiple concurrent elections (an `electionId` chosen by the admin)
-- Email verification and password reset via the Cognito Hosted UI
+- Email verification at registration time
 - Scheduled start and end with Amazon EventBridge
 - CloudFront + HTTPS in front of the S3 website
 - Infrastructure as Code (AWS SAM / CloudFormation / CDK)
