@@ -19,6 +19,12 @@ Start the demo from a clean state: election `NOT_STARTED`, every candidate on 0 
 13. Click **Declare Winner**. The page shows **"🏆 CONGRATULATIONS! Congratulations &lt;Winner&gt;, you have won the election with &lt;N&gt; votes."**
 14. **Log in as a candidate.** The final results and the winner are now visible.
 
+### Optional: account recovery
+
+- On the login screen click **Forgot Password?**, enter a registered email and click **Send Verification Code**.
+- Enter the emailed code and a new password on the **Reset Password** screen (use **Resend Code** if needed), then log in with the new password.
+- Accounts created with a temporary password are taken to **Set a New Password** on first login (`NEW_PASSWORD_REQUIRED`).
+
 ## Part 2: Tie handling (optional)
 
 15. As admin, click **Reset Election**, then **Start Election**.
