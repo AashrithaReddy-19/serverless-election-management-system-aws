@@ -176,7 +176,8 @@
   },
   "x-amazon-apigateway-cors": {
     "allowOrigins": [
-      "*"
+      "https://YOUR_BUCKET.s3.YOUR_REGION.amazonaws.com",
+      "http://YOUR_BUCKET.s3-website.YOUR_REGION.amazonaws.com"
     ],
     "allowHeaders": [
       "authorization",
