@@ -27,18 +27,55 @@ function roleFromToken(t) {
 }
 function tokenValid(t) { try { return decodeToken(t).exp * 1000 > Date.now() + 10000; } catch (e) { return false; } }
 
-// ---------------- Cognito login ----------------
-async function cognitoLogin(email, password) {
+// ---------------- Cognito (User Pool REST API, no SDK needed) ----------------
+// Calls a Cognito Identity Provider action, e.g. "InitiateAuth", "ForgotPassword".
+async function cognito(action, payload) {
   const res = await fetch(`https://cognito-idp.${CFG.region}.amazonaws.com/`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-amz-json-1.1", "X-Amz-Target": "AWSCognitoIdentityProviderService.InitiateAuth" },
-    body: JSON.stringify({ AuthFlow: "USER_PASSWORD_AUTH", ClientId: CFG.clientId, AuthParameters: { USERNAME: email, PASSWORD: password } }),
+    headers: { "Content-Type": "application/x-amz-json-1.1", "X-Amz-Target": "AWSCognitoIdentityProviderService." + action },
+    body: JSON.stringify(Object.assign({ ClientId: CFG.clientId }, payload)),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Login failed");
-  if (!data.AuthenticationResult) throw new Error("Additional verification required (" + (data.ChallengeName || "challenge") + "). Ask the admin to set a permanent password.");
-  return data.AuthenticationResult.IdToken;
+  let data = {};
+  try { data = await res.json(); } catch (e) {}
+  if (!res.ok) {
+    const err = new Error(data.message || data.Message || action + " failed");
+    err.code = String(data.__type || "").split("#").pop();   // e.g. "CodeMismatchException"
+    throw err;
+  }
+  return data;
 }
+
+// Friendly messages for Cognito errors
+function cognitoMessage(err) {
+  switch (err.code) {
+    case "NotAuthorizedException": return "Incorrect email or password.";
+    case "UserNotFoundException": return "No account was found with this email.";
+    case "UserNotConfirmedException": return "This account is not confirmed yet. Please contact the admin.";
+    case "PasswordResetRequiredException": return "A password reset is required for this account.";
+    case "CodeMismatchException": return "The verification code is incorrect. Please check the code and try again.";
+    case "ExpiredCodeException": return "The verification code has expired. Click 'Resend Code' to get a new one.";
+    case "InvalidPasswordException": return "Password must be at least 8 characters and include upper case, lower case, a number and a symbol.";
+    case "LimitExceededException":
+    case "TooManyRequestsException":
+    case "TooManyFailedAttemptsException": return "Too many attempts. Please wait a few minutes and try again.";
+    case "InvalidParameterException": return err.message || "Invalid input.";
+    case "CodeDeliveryFailureException": return "The verification code could not be delivered to this email address.";
+    default: return err.message || "Something went wrong. Please try again.";
+  }
+}
+
+let pendingChallenge = null;   // { email, session } for NEW_PASSWORD_REQUIRED
+let resetEmail = "";           // email used for the forgot-password flow
+
+// Returns the ID token, or throws. A NEW_PASSWORD_REQUIRED challenge is returned as { challenge }.
+async function cognitoLogin(email, password) {
+  const data = await cognito("InitiateAuth", { AuthFlow: "USER_PASSWORD_AUTH", AuthParameters: { USERNAME: email, PASSWORD: password } });
+  if (data.AuthenticationResult) return { idToken: data.AuthenticationResult.IdToken };
+  if (data.ChallengeName === "NEW_PASSWORD_REQUIRED") return { challenge: { email, session: data.Session } };
+  throw new Error("Unsupported login step (" + (data.ChallengeName || "unknown") + "). Please contact the admin.");
+}
+
+function strongPassword(p) { return p.length >= 8 && /[a-z]/.test(p) && /[A-Z]/.test(p) && /[0-9]/.test(p) && /[^A-Za-z0-9]/.test(p); }
 
 // ---------------- API helper ----------------
 async function api(path, method = "GET", body) {
@@ -73,24 +110,111 @@ function route() {
   else { logout(); showMsg("authMsg", "Your account has no role assigned.", "err"); }
 }
 
-// ---------------- Auth tabs ----------------
+// ---------------- Auth tabs / forms ----------------
 const FORMS = { tabLogin: "loginForm", tabVoter: "voterForm", tabCandidate: "candidateForm" };
+const AUTH_FORMS = ["loginForm", "voterForm", "candidateForm", "forgotForm", "resetForm", "newPwForm"];
+function showAuthForm(formId, tabId) {
+  AUTH_FORMS.forEach((f) => $(f).classList.toggle("hidden", f !== formId));
+  Object.keys(FORMS).forEach((t) => $(t).classList.toggle("active", t === tabId));
+}
 Object.keys(FORMS).forEach((tab) => {
-  $(tab).onclick = () => {
-    Object.entries(FORMS).forEach(([t, f]) => { $(t).classList.toggle("active", t === tab); $(f).classList.toggle("hidden", t !== tab); });
-    showMsg("authMsg", "");
-  };
+  $(tab).onclick = () => { showAuthForm(FORMS[tab], tab); showMsg("authMsg", ""); };
 });
+document.querySelectorAll(".backToLogin").forEach((b) => (b.onclick = () => { showAuthForm("loginForm", "tabLogin"); showMsg("authMsg", ""); }));
 
 $("loginForm").onsubmit = async (e) => {
   e.preventDefault();
+  const email = $("loginEmail").value.trim().toLowerCase();
   showMsg("authMsg", "Logging in...", "warn");
   try {
-    saveToken(await cognitoLogin($("loginEmail").value.trim().toLowerCase(), $("loginPassword").value));
+    const r = await cognitoLogin(email, $("loginPassword").value);
     $("loginPassword").value = "";
+    if (r.challenge) {                       // temporary password -> choose a new one
+      pendingChallenge = r.challenge;
+      showAuthForm("newPwForm", "tabLogin");
+      showMsg("authMsg", "Please set a new password to finish logging in.", "warn");
+      return;
+    }
+    saveToken(r.idToken);
     showMsg("authMsg", "");
     route();
-  } catch (err) { showMsg("authMsg", err.message, "err"); }
+  } catch (err) {
+    if (err.code === "PasswordResetRequiredException") {
+      // Admin reset the password in Cognito: send a code and go straight to the reset screen
+      await startForgotPassword(email, "A password reset is required for this account. ");
+      return;
+    }
+    showMsg("authMsg", cognitoMessage(err), "err");
+  }
+};
+
+// ---------------- Forgot password (ForgotPassword + ConfirmForgotPassword) ----------------
+$("forgotLink").onclick = (e) => {
+  e.preventDefault();
+  $("fpEmail").value = $("loginEmail").value.trim();
+  showAuthForm("forgotForm", "tabLogin");
+  showMsg("authMsg", "");
+};
+
+async function startForgotPassword(email, prefix = "") {
+  if (!email) { showMsg("authMsg", "Please enter your email.", "err"); return false; }
+  showMsg("authMsg", "Sending verification code...", "warn");
+  try {
+    const data = await cognito("ForgotPassword", { Username: email });
+    resetEmail = email;
+    const dest = data.CodeDeliveryDetails && data.CodeDeliveryDetails.Destination;
+    $("rpEmailText").textContent = email;
+    $("rpDest").textContent = dest ? ` (sent to ${dest})` : "";
+    $("rpCode").value = ""; $("rpPassword").value = ""; $("rpConfirm").value = "";
+    showAuthForm("resetForm", "tabLogin");
+    showMsg("authMsg", prefix + "Verification code sent.", "ok");
+    return true;
+  } catch (err) {
+    showAuthForm("forgotForm", "tabLogin");
+    $("fpEmail").value = email;
+    showMsg("authMsg", cognitoMessage(err), "err");
+    return false;
+  }
+}
+
+$("forgotForm").onsubmit = (e) => { e.preventDefault(); startForgotPassword($("fpEmail").value.trim().toLowerCase()); };
+$("resendCode").onclick = () => startForgotPassword(resetEmail);
+
+$("resetForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const code = $("rpCode").value.trim(), pw = $("rpPassword").value, confirmPw = $("rpConfirm").value;
+  if (pw !== confirmPw) { showMsg("authMsg", "The new passwords do not match.", "err"); return; }
+  if (!strongPassword(pw)) { showMsg("authMsg", cognitoMessage({ code: "InvalidPasswordException" }), "err"); return; }
+  showMsg("authMsg", "Changing password...", "warn");
+  try {
+    await cognito("ConfirmForgotPassword", { Username: resetEmail, ConfirmationCode: code, Password: pw });
+    $("rpPassword").value = ""; $("rpConfirm").value = ""; $("rpCode").value = "";
+    $("loginEmail").value = resetEmail; $("loginPassword").value = "";
+    showAuthForm("loginForm", "tabLogin");
+    showMsg("authMsg", "Password changed successfully. Please login.", "ok");
+  } catch (err) { showMsg("authMsg", cognitoMessage(err), "err"); }
+};
+
+// ---------------- First login with a temporary password ----------------
+$("newPwForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const pw = $("npPassword").value, confirmPw = $("npConfirm").value;
+  if (!pendingChallenge) { showAuthForm("loginForm", "tabLogin"); return; }
+  if (pw !== confirmPw) { showMsg("authMsg", "The new passwords do not match.", "err"); return; }
+  if (!strongPassword(pw)) { showMsg("authMsg", cognitoMessage({ code: "InvalidPasswordException" }), "err"); return; }
+  try {
+    const data = await cognito("RespondToAuthChallenge", {
+      ChallengeName: "NEW_PASSWORD_REQUIRED", Session: pendingChallenge.session,
+      ChallengeResponses: { USERNAME: pendingChallenge.email, NEW_PASSWORD: pw },
+    });
+    $("npPassword").value = ""; $("npConfirm").value = "";
+    pendingChallenge = null;
+    if (!data.AuthenticationResult) throw new Error("Please login again with your new password.");
+    saveToken(data.AuthenticationResult.IdToken);
+    showAuthForm("loginForm", "tabLogin");
+    showMsg("authMsg", "");
+    route();
+  } catch (err) { showMsg("authMsg", cognitoMessage(err), "err"); }
 };
 
 async function register(body, formId) {

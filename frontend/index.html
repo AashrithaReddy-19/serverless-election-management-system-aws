@@ -30,6 +30,44 @@
         <label>Email</label><input type="email" id="loginEmail" required>
         <label>Password</label><input type="password" id="loginPassword" required>
         <div class="row"><button type="submit">Login</button></div>
+        <p style="margin:12px 0 0"><a href="#" id="forgotLink">Forgot Password?</a></p>
+      </form>
+
+      <!-- Forgot password, step 1: request a code -->
+      <form id="forgotForm" class="hidden">
+        <h2>Forgot Password</h2>
+        <p style="font-size:14px;color:var(--muted)">Enter your account email. A verification code will be sent to that email.</p>
+        <label>Email</label><input type="email" id="fpEmail" required>
+        <div class="row">
+          <button type="submit">Send Verification Code</button>
+          <button type="button" class="secondary backToLogin">Back to Login</button>
+        </div>
+      </form>
+
+      <!-- Forgot password, step 2: code + new password -->
+      <form id="resetForm" class="hidden">
+        <h2>Reset Password</h2>
+        <p style="font-size:14px;color:var(--muted)">Code sent for <b id="rpEmailText"></b><span id="rpDest"></span></p>
+        <label>Verification Code</label><input id="rpCode" required inputmode="numeric" autocomplete="one-time-code">
+        <label>New Password</label><input type="password" id="rpPassword" required minlength="8" autocomplete="new-password">
+        <label>Confirm New Password</label><input type="password" id="rpConfirm" required minlength="8" autocomplete="new-password">
+        <div class="row">
+          <button type="submit">Change Password</button>
+          <button type="button" class="secondary" id="resendCode">Resend Code</button>
+          <button type="button" class="secondary backToLogin">Back to Login</button>
+        </div>
+      </form>
+
+      <!-- First login with a temporary password (NEW_PASSWORD_REQUIRED) -->
+      <form id="newPwForm" class="hidden">
+        <h2>Set a New Password</h2>
+        <p style="font-size:14px;color:var(--muted)">Your account has a temporary password. Choose a new password to continue.</p>
+        <label>New Password</label><input type="password" id="npPassword" required minlength="8" autocomplete="new-password">
+        <label>Confirm New Password</label><input type="password" id="npConfirm" required minlength="8" autocomplete="new-password">
+        <div class="row">
+          <button type="submit">Set Password and Login</button>
+          <button type="button" class="secondary backToLogin">Back to Login</button>
+        </div>
       </form>
 
       <form id="voterForm" class="hidden">
